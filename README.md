@@ -1,2 +1,61 @@
 # Incident_Evidence_Management_System
 PL/SQL project designed to collect evidence and incident information related to specific types of attacks, with the ability to add and modify them.
+--TABLE DEPARTMENT:
+CREATE TABLE DEPARTMENT (
+id_department SERIAL PRIMARY KEY,
+name_department VARCHAR(50),
+manager_name VARCHAR(50)
+);
+--TABLE USERS:
+CREATE TABLE USERS (
+userid SERIAL PRIMARY KEY,
+name VARCHAR(50), 
+role VARCHAR(50),
+email VARCHAR(100),
+created_at DATETIME,
+department_id INT,
+FOREIGN KEY (department_id) REFERENCES DEPARTMENT(id_department)
+ON DELETE SET NULL
+ON UPDATE CASCADE
+);
+--TABLE INCIDENTS
+CREATE TABLE INCIDENTS (
+incidentid SERIAL PRIMARY KEY AUTO_INCREMENT,
+title VARCHAR(200) NOT NULL,
+severity_level VARCHAR(50),
+date_reporting TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+resolved_at TIMESTAMP NULL,
+reported_by INT,
+FOREIGN KEY (reported_by) REFERENCES USERS(userid)
+ON DELETE SET NULL
+ON UPDATE CASCADE
+);
+-- TABLE EVIDENCE:
+CREATE TABLE EVIDENCE (
+evidence_id SERIAL PRIMARY KEY AUTO_INCREMENT,
+incident_id INT NOT NULL,
+evidence_type VARCHAR(100),
+collected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+collected_by INT,
+FOREIGN KEY (incident_id) REFERENCES INCIDENTS(incidentid)
+ON DELETE CASCADE
+ON UPDATE CASCADE,
+FOREIGN KEY (collected_by) REFERENCES USERS(userid)
+ON DELETE SET NULL
+ON UPDATE CASCADE
+);
+--TABLE ACTION_LOG
+CREATE TABLE ACTION_LOG (
+log_id INT PRIMARY KEY AUTO_INCREMENT,
+incident_id INT NOT NULL,
+user_id INT,
+action_type VARCHAR(100),
+action_description TEXT,
+action_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+FOREIGN KEY (incident_id) REFERENCES INCIDENTS(incidentid)
+ON DELETE CASCADE
+ON UPDATE CASCADE,
+FOREIGN KEY (user_id) REFERENCES USERS(userid)
+ON DELETE SET NULL
+ON UPDATE CASCADE
+);
