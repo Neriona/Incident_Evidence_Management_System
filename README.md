@@ -12,62 +12,62 @@ DROP TABLE DEPARTMENT CASCADE CONSTRAINTS;
 
 --TABLE DEPARTMENT:
 CREATE TABLE DEPARTMENT (
-id_department SERIAL PRIMARY KEY,
-name_department VARCHAR(50),
-manager_name VARCHAR(50)
+    id_department NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name_department VARCHAR2(50) NOT NULL,
+    manager_name VARCHAR2(50)
 );
 --TABLE USERS:
 CREATE TABLE USERS (
-userid SERIAL PRIMARY KEY,
-name VARCHAR(50), 
-role VARCHAR(50),
-email VARCHAR(100),
-created_at DATETIME,
-department_id INT,
-FOREIGN KEY (department_id) REFERENCES DEPARTMENT(id_department)
-ON DELETE SET NULL
-ON UPDATE CASCADE
+    userid NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name VARCHAR2(50) NOT NULL, 
+    role VARCHAR2(50) NOT NULL CHECK (role IN ('ADMIN', 'ANALYST', 'VIEWER')),
+    email VARCHAR2(100) NOT NULL UNIQUE,
+    created_at TIMESTAMP DEFAULT SYSDATE,
+    department_id NUMBER,
+    CONSTRAINT fk_user_dept FOREIGN KEY (department_id) 
+        REFERENCES DEPARTMENT(id_department)
+        ON DELETE SET NULL
 );
 --TABLE INCIDENTS
 CREATE TABLE INCIDENTS (
-incidentid SERIAL PRIMARY KEY AUTO_INCREMENT,
-title VARCHAR(200) NOT NULL,
-severity_level VARCHAR(50),
-date_reporting TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-resolved_at TIMESTAMP NULL,
-reported_by INT,
-FOREIGN KEY (reported_by) REFERENCES USERS(userid)
-ON DELETE SET NULL
-ON UPDATE CASCADE
+    incidentid NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    title VARCHAR2(200) NOT NULL,
+    severity_level VARCHAR2(50) CHECK (severity_level IN ('CRITICAL', 'HIGH', 'MEDIUM', 'LOW')),
+    date_reporting TIMESTAMP DEFAULT SYSDATE,
+    resolved_at TIMESTAMP NULL,
+    reported_by NUMBER,
+    CONSTRAINT fk_incident_reporter FOREIGN KEY (reported_by) 
+        REFERENCES USERS(userid)
+        ON DELETE SET NULL
 );
 -- TABLE EVIDENCE:
 CREATE TABLE EVIDENCE (
-evidence_id SERIAL PRIMARY KEY AUTO_INCREMENT,
-incident_id INT NOT NULL,
-evidence_type VARCHAR(100),
-collected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-collected_by INT,
-FOREIGN KEY (incident_id) REFERENCES INCIDENTS(incidentid)
-ON DELETE CASCADE
-ON UPDATE CASCADE,
-FOREIGN KEY (collected_by) REFERENCES USERS(userid)
-ON DELETE SET NULL
-ON UPDATE CASCADE
+    evidence_id NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    incident_id NUMBER NOT NULL,
+    evidence_type VARCHAR2(100) NOT NULL,
+    collected_at TIMESTAMP DEFAULT SYSDATE,
+    collected_by NUMBER,
+    CONSTRAINT fk_evidence_incident FOREIGN KEY (incident_id) 
+        REFERENCES INCIDENTS(incidentid)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_evidence_collector FOREIGN KEY (collected_by) 
+        REFERENCES USERS(userid)
+        ON DELETE SET NULL
 );
 --TABLE ACTION_LOG
 CREATE TABLE ACTION_LOG (
-log_id INT PRIMARY KEY AUTO_INCREMENT,
-incident_id INT NOT NULL,
-user_id INT,
-action_type VARCHAR(100),
-action_description TEXT,
-action_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-FOREIGN KEY (incident_id) REFERENCES INCIDENTS(incidentid)
-ON DELETE CASCADE
-ON UPDATE CASCADE,
-FOREIGN KEY (user_id) REFERENCES USERS(userid)
-ON DELETE SET NULL
-ON UPDATE CASCADE
+    log_id NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    incident_id NUMBER NOT NULL,
+    user_id NUMBER,
+    action_type VARCHAR2(100) NOT NULL,
+    action_description CLOB,
+    action_date TIMESTAMP DEFAULT SYSDATE,
+    CONSTRAINT fk_log_incident FOREIGN KEY (incident_id) 
+        REFERENCES INCIDENTS(incidentid)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_log_user FOREIGN KEY (user_id) 
+        REFERENCES USERS(userid)
+        ON DELETE SET NULL
 );
 -- =========================
 --        D D L
