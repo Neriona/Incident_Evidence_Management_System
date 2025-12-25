@@ -307,3 +307,126 @@ INSERT INTO ACTION_LOG (incident_id, user_id, action_type, action_description) V
 (8, 1, 'ESCALATION', 'CRITICAL: Ransomware - Escalated to management');
 
 COMMIT;
+- =========================
+--        PL/SQL - BLOCS ANONYMES
+-- =========================
+
+-- Bloc 1: Afficher les incidents critiques
+SET SERVEROUTPUT ON;
+
+BEGIN
+    DBMS_OUTPUT.PUT_LINE('========================================');
+    DBMS_OUTPUT.PUT_LINE('   INCIDENTS CRITIQUES NON RESOLUS');
+    DBMS_OUTPUT.PUT_LINE('========================================');
+    
+   FOR rec IN (
+        SELECT i.incidentid, i.title, u.name AS reporter
+        FROM INCIDENTS i
+        JOIN USERS u ON i.reported_by = u.userid
+        WHERE i.severity_level = 'CRITICAL' AND i.resolved_at IS NULL
+        ORDER BY i.date_reporting DESC
+    ) LOOP
+        DBMS_OUTPUT.PUT_LINE('ID: ' || rec.incidentid || 
+                           ' | Title: ' || rec.title || 
+                           ' | Reporter: ' || rec.reporter);
+   END LOOP;
+END;
+/
+
+-- Bloc 2: Vérifier et afficher les utilisateurs Cybersecurity
+BEGIN
+    DBMS_OUTPUT.PUT_LINE('========================================');
+    DBMS_OUTPUT.PUT_LINE('   CYBERSECURITY TEAM MEMBERS');
+    DBMS_OUTPUT.PUT_LINE('========================================');
+    
+   FOR rec IN (
+        SELECT u.userid, u.name, u.role, u.email
+        FROM USERS u
+        JOIN DEPARTMENT d ON u.department_id = d.id_department
+        WHERE d.name_department = 'Cybersecurity'
+        ORDER BY u.role, u.name
+   ) LOOP
+        DBMS_OUTPUT.PUT_LINE('ID: ' || rec.userid || 
+                           ' | Name: ' || rec.name || 
+                           ' | Role: ' || rec.role ||
+                           ' | Email: ' || rec.email);
+    END LOOP;
+END;
+/
+
+-- Bloc 3: Statistiques globales
+DECLARE
+    v_total_incidents NUMBER;
+    v_critical_incidents NUMBER;
+    v_total_evidence NUMBER;
+    v_total_users NUMBER;
+BEGIN
+    SELECT COUNT(*) INTO v_total_incidents FROM INCIDENTS;
+    SELECT COUNT(*) INTO v_critical_incidents FROM INCIDENTS 
+        WHERE severity_level = 'CRITICAL';
+    SELECT COUNT(*) INTO v_total_evidence FROM EVIDENCE;
+    SELECT COUNT(*) INTO v_total_users FROM USERS;
+    
+   DBMS_OUTPUT.PUT_LINE('========================================');
+    DBMS_OUTPUT.PUT_LINE('   SYSTEM STATISTICS');
+    DBMS_OUTPUT.PUT_LINE('========================================');
+    DBMS_OUTPUT.PUT_LINE('Total Incidents: ' || v_total_incidents);
+    DBMS_OUTPUT.PUT_LINE('Critical Incidents: ' || v_critical_incidents);
+    DBMS_OUTPUT.PUT_LINE('Total Evidence: ' || v_total_evidence);
+    DBMS_OUTPUT.PUT_LINE('Total Users: ' || v_total_users);
+END;
+/
+-- cursor: Statistiques par département
+DECLARE
+    CURSOR c_stats IS
+        SELECT d.name_department,
+               d.manager_name,
+               COUNT(DISTINCT u.userid) AS total_users,
+               COUNT(DISTINCT i.incidentid) AS incidents_reported,
+               COUNT(DISTINCT e.evidence_id) AS evidence_collected
+        FROM DEPARTMENT d
+        LEFT JOIN USERS u ON u.department_id = d.id_department
+        LEFT JOIN INCIDENTS i ON i.reported_by = u.userid
+        LEFT JOIN EVIDENCE e ON e.collected_by = u.userid
+        GROUP BY d.id_department, d.name_department, d.manager_name
+        ORDER BY incidents_reported DESC;
+BEGIN
+    FOR r IN c_stats LOOP
+        DBMS_OUTPUT.PUT_LINE(
+            r.name_department || ' | Manager: ' || r.manager_name ||
+            ' | Users: ' || r.total_users ||
+            ' | Incidents: ' || r.incidents_reported ||
+            ' | Evidence: ' || r.evidence_collected
+        );
+    END LOOP;
+END;
+/
+----- Curseur: Parcourir les preuves d'un incident----
+DECLARE
+    CURSOR c_evidence (p_incident_id NUMBER) IS
+        SELECT e.evidence_type, e.collected_at,
+               u.name AS collector_name, d.name_department
+        FROM EVIDENCE e
+        JOIN USERS u ON e.collected_by = u.userid
+        JOIN DEPARTMENT d ON u.department_id = d.id_department
+        WHERE e.incident_id = p_incident_id
+        ORDER BY e.collected_at;
+    
+    v_incident_title INCIDENTS.title%TYPE;
+BEGIN
+    -- Obtenir le titre de l'incident
+    SELECT title INTO v_incident_title FROM INCIDENTS WHERE incidentid = 1;
+    
+   DBMS_OUTPUT.PUT_LINE('========================================');
+    DBMS_OUTPUT.PUT_LINE('EVIDENCE FOR: ' || v_incident_title);
+    DBMS_OUTPUT.PUT_LINE('========================================');
+    
+   FOR rec IN c_evidence(1) LOOP
+        DBMS_OUTPUT.PUT_LINE('Type: ' || rec.evidence_type);
+        DBMS_OUTPUT.PUT_LINE('Collected by: ' || rec.collector_name || 
+                           ' (' || rec.name_department || ')');
+        DBMS_OUTPUT.PUT_LINE('Date: ' || TO_CHAR(rec.collected_at, 'DD-MON-YYYY HH24:MI'));
+        DBMS_OUTPUT.PUT_LINE('----------------------------------------');
+    END LOOP;
+END;
+/
