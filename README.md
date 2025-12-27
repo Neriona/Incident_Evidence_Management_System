@@ -1,14 +1,21 @@
 # Incident_Evidence_Management_System
 --PL/SQL project designed to collect evidence and incident information related to specific types of attacks, with the ability to add and modify them.
-  -- Drop tables if they exist (pour réinitialiser)
- DROP TABLE ACTION_LOG CASCADE CONSTRAINTS;
- DROP TABLE EVIDENCE CASCADE CONSTRAINTS;
- DROP TABLE INCIDENTS CASCADE CONSTRAINTS;
- DROP TABLE USERS CASCADE CONSTRAINTS;
- DROP TABLE DEPARTMENT CASCADE CONSTRAINTS;
-  ========================= 
-  -- D D L -- 
-  =========================
+-- =========================
+-- CLEANING: Drop tables safely
+-- =========================
+BEGIN
+    EXECUTE IMMEDIATE 'DROP TABLE ACTION_LOG CASCADE CONSTRAINTS';
+    EXECUTE IMMEDIATE 'DROP TABLE EVIDENCE CASCADE CONSTRAINTS';
+    EXECUTE IMMEDIATE 'DROP TABLE INCIDENTS CASCADE CONSTRAINTS';
+    EXECUTE IMMEDIATE 'DROP TABLE USERS CASCADE CONSTRAINTS';
+    EXECUTE IMMEDIATE 'DROP TABLE DEPARTMENT CASCADE CONSTRAINTS';
+EXCEPTION
+    WHEN OTHERS THEN NULL;
+END;
+/
+  -- ========================= 
+  -- D D L  
+  --=========================
 -- TABLE DEPARTMENT
 CREATE TABLE DEPARTMENT (
     department_id NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -107,7 +114,7 @@ INSERT INTO DEPARTMENT (name_department, manager_name) VALUES
 INSERT INTO DEPARTMENT (name_department, manager_name) VALUES
 ('Network Operations', 'Mohammed Khamrich');
 
-COMMIT;
+BEGIN
 
 -- INSERTION DES UTILISATEURS
 
@@ -157,7 +164,7 @@ INSERT INTO USERS (name, role, email, department_id) VALUES
 INSERT INTO USERS (name, role, email, department_id) VALUES
 ('Yassin Amrani', 'ANALYST', 'yassin.amrani@company.ma', 3);
 
-COMMIT;
+
 
 -- INSERTION DES INCIDENTS (15 INCIDENTS)
 INSERT INTO INCIDENTS (title, severity_level, reported_by) VALUES
@@ -192,9 +199,14 @@ INSERT INTO INCIDENTS (title, severity_level, reported_by) VALUES
 ('Password Policy Violation', 'LOW', 11);
 
 COMMIT;
-
+EXCEPTION 
+    WHEN OTHERS THEN 
+          ROLLBACK;
+          DBMS_OUTPUT.PUT_LINE('Error in DML inserts: ' || SQLERRM);
+END;
+/
 -- =========================
---        TRIGGER (Validation Cybersecurity)
+-- TRIGGER (Validation Cybersecurity)
 -- =========================
 
 -- Trigger pour restreindre la collecte de preuves au département Cybersecurity uniquement
@@ -207,10 +219,11 @@ BEGIN
     SELECT COUNT(*)
     INTO v_count
     FROM USERS u
-    JOIN DEPARTMENT d ON u.department_id = d.id_department
-    WHERE u.userid = :NEW.collected_by
+    JOIN DEPARTMENT d ON u.department_id = d.department_id
+    WHERE u.user_id = :NEW.collected_by
       AND d.name_department = 'Cybersecurity';
-      IF v_count = 0 THEN
+      
+    IF v_count = 0 THEN
         RAISE_APPLICATION_ERROR(-20001, 
             'ERROR: Only Cybersecurity department users can collect evidence!');
     END IF;
@@ -223,8 +236,34 @@ AFTER INSERT ON EVIDENCE
 FOR EACH ROW
 BEGIN
     INSERT INTO ACTION_LOG (incident_id, user_id, action_type, action_description)
-    VALUES (:NEW.incident_id, :NEW.collected_by, 'EVIDENCE_ADDED', 
-            'Evidence of type "' || :NEW.evidence_type || '" was added');
+    VALUES (:NEW.incident_id, :NEW.collected_by, 'EVIDENCE_ADDED','Evidence of type "' || :NEW.evidence_type || '" was added');
+END;
+/
+
+-- =========================
+--        VIEW
+-- =========================
+
+-- Vue: Détails complets des incidents
+CREATE OR REPLACE VIEW v_incidents_details AS
+SELECT i.incident_id, i.title, i.severity_level, i.status, 
+       i.date_reporting, u.name AS reporter, d.name_department,
+       COUNT(e.evidence_id) AS evidence_count
+       ROUND((SYSDATE - i.date_reporting) * 24, 2) AS hours_open
+FROM INCIDENTS i
+LEFT JOIN USERS u ON i.reported_by = u.user_id
+LEFT JOIN DEPARTMENT d ON u.department_id = d.department_id
+LEFT JOIN EVIDENCE e ON i.incident_id = e.incident_id
+GROUP BY i.incident_id, i.title, i.severity_level, i.status, 
+         i.date_reporting, u.name, d.name_department;
+
+-- Test de la vue
+BEGIN
+    DBMS_OUTPUT.PUT_LINE('=== VUE INCIDENTS ===');
+    FOR rec IN (SELECT * FROM v_incidents_details WHERE ROWNUM <= 5) LOOP
+        DBMS_OUTPUT.PUT_LINE(rec.title || ' | ' || rec.severity_level || 
+                           ' | Evidence: ' || rec.evidence_count);
+    END LOOP;
 END;
 /
 
@@ -311,7 +350,7 @@ INSERT INTO ACTION_LOG (incident_id, user_id, action_type, action_description) V
 (8, 1, 'ESCALATION', 'CRITICAL: Ransomware - Escalated to management');
 
 COMMIT;
-- =========================
+-- =========================
 --        PL/SQL - BLOCS ANONYMES
 -- =========================
 
@@ -324,13 +363,13 @@ BEGIN
     DBMS_OUTPUT.PUT_LINE('========================================');
     
    FOR rec IN (
-        SELECT i.incidentid, i.title, u.name AS reporter
+        SELECT i.incident_id, i.title, u.name AS reporter
         FROM INCIDENTS i
-        JOIN USERS u ON i.reported_by = u.userid
+        JOIN USERS u ON i.reported_by = u.user_id
         WHERE i.severity_level = 'CRITICAL' AND i.resolved_at IS NULL
         ORDER BY i.date_reporting DESC
     ) LOOP
-        DBMS_OUTPUT.PUT_LINE('ID: ' || rec.incidentid || 
+        DBMS_OUTPUT.PUT_LINE('ID: ' || rec.incident_id || 
                            ' | Title: ' || rec.title || 
                            ' | Reporter: ' || rec.reporter);
    END LOOP;
@@ -344,17 +383,18 @@ BEGIN
     DBMS_OUTPUT.PUT_LINE('========================================');
     
    FOR rec IN (
-        SELECT u.userid, u.name, u.role, u.email
+        SELECT u.user_id, u.name, u.role, u.email
         FROM USERS u
-        JOIN DEPARTMENT d ON u.department_id = d.id_department
+        JOIN DEPARTMENT d ON u.department_id = d.department_id
         WHERE d.name_department = 'Cybersecurity'
         ORDER BY u.role, u.name
    ) LOOP
-        DBMS_OUTPUT.PUT_LINE('ID: ' || rec.userid || 
-                           ' | Name: ' || rec.name || 
-                           ' | Role: ' || rec.role ||
-                           ' | Email: ' || rec.email);
+        DBMS_OUTPUT.PUT_LINE('ID: ' || rec.user_id ||' | Name: ' || rec.name ||' | Role: ' || rec.role ||' | Email: ' || rec.email);
     END LOOP;
+
+EXCEPTION
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('Error displaying cybersecurity users: ' || SQLERRM);
 END;
 /
 
@@ -378,21 +418,25 @@ BEGIN
     DBMS_OUTPUT.PUT_LINE('Critical Incidents: ' || v_critical_incidents);
     DBMS_OUTPUT.PUT_LINE('Total Evidence: ' || v_total_evidence);
     DBMS_OUTPUT.PUT_LINE('Total Users: ' || v_total_users);
+EXCEPTION
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('Error displaying system statistics: ' || SQLERRM);
 END;
 /
+
 -- cursor: Statistiques par département
 DECLARE
     CURSOR c_stats IS
         SELECT d.name_department,
                d.manager_name,
-               COUNT(DISTINCT u.userid) AS total_users,
-               COUNT(DISTINCT i.incidentid) AS incidents_reported,
+               COUNT(DISTINCT u.user_id) AS total_users,
+               COUNT(DISTINCT i.incident_id) AS incidents_reported,
                COUNT(DISTINCT e.evidence_id) AS evidence_collected
         FROM DEPARTMENT d
-        LEFT JOIN USERS u ON u.department_id = d.id_department
-        LEFT JOIN INCIDENTS i ON i.reported_by = u.userid
-        LEFT JOIN EVIDENCE e ON e.collected_by = u.userid
-        GROUP BY d.id_department, d.name_department, d.manager_name
+        LEFT JOIN USERS u ON u.department_id = d.department_id
+        LEFT JOIN INCIDENTS i ON i.reported_by = u.user_id
+        LEFT JOIN EVIDENCE e ON e.collected_by = u.user_id
+        GROUP BY d.department_id, d.name_department, d.manager_name
         ORDER BY incidents_reported DESC;
 BEGIN
     FOR r IN c_stats LOOP
@@ -403,6 +447,9 @@ BEGIN
             ' | Evidence: ' || r.evidence_collected
         );
     END LOOP;
+EXCEPTION
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('Error displaying department statistics: ' || SQLERRM);
 END;
 /
 ----- Curseur: Parcourir les preuves d'un incident----
@@ -411,15 +458,15 @@ DECLARE
         SELECT e.evidence_type, e.collected_at,
                u.name AS collector_name, d.name_department
         FROM EVIDENCE e
-        JOIN USERS u ON e.collected_by = u.userid
-        JOIN DEPARTMENT d ON u.department_id = d.id_department
+        JOIN USERS u ON e.collected_by = u.user_id
+        JOIN DEPARTMENT d ON u.department_id = d.department_id
         WHERE e.incident_id = p_incident_id
         ORDER BY e.collected_at;
     
     v_incident_title INCIDENTS.title%TYPE;
 BEGIN
     -- Obtenir le titre de l'incident
-    SELECT title INTO v_incident_title FROM INCIDENTS WHERE incidentid = 1;
+    SELECT title INTO v_incident_title FROM INCIDENTS WHERE incident_id = 1;
     
    DBMS_OUTPUT.PUT_LINE('========================================');
     DBMS_OUTPUT.PUT_LINE('EVIDENCE FOR: ' || v_incident_title);
