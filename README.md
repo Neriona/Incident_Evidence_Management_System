@@ -1,46 +1,49 @@
- # Incident_Evidence_Management_System
+# Incident_Evidence_Management_System
 --PL/SQL project designed to collect evidence and incident information related to specific types of attacks, with the ability to add and modify them.
--- =========================
---        D D L
--- =========================
--- Drop tables if they exist (pour réinitialiser)
-DROP TABLE ACTION_LOG CASCADE CONSTRAINTS;
-DROP TABLE EVIDENCE CASCADE CONSTRAINTS;
-DROP TABLE INCIDENTS CASCADE CONSTRAINTS;
-DROP TABLE USERS CASCADE CONSTRAINTS;
-DROP TABLE DEPARTMENT CASCADE CONSTRAINTS;
-
---TABLE DEPARTMENT:
+  -- Drop tables if they exist (pour réinitialiser)
+ DROP TABLE ACTION_LOG CASCADE CONSTRAINTS;
+ DROP TABLE EVIDENCE CASCADE CONSTRAINTS;
+ DROP TABLE INCIDENTS CASCADE CONSTRAINTS;
+ DROP TABLE USERS CASCADE CONSTRAINTS;
+ DROP TABLE DEPARTMENT CASCADE CONSTRAINTS;
+  ========================= 
+  -- D D L -- 
+  =========================
+-- TABLE DEPARTMENT
 CREATE TABLE DEPARTMENT (
-    id_department NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    department_id NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     name_department VARCHAR2(50) NOT NULL,
     manager_name VARCHAR2(50)
 );
---TABLE USERS:
+
+-- TABLE USERS
 CREATE TABLE USERS (
-    userid NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    user_id NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     name VARCHAR2(50) NOT NULL, 
     role VARCHAR2(50) NOT NULL CHECK (role IN ('ADMIN', 'ANALYST', 'VIEWER')),
     email VARCHAR2(100) NOT NULL UNIQUE,
     created_at TIMESTAMP DEFAULT SYSDATE,
     department_id NUMBER,
     CONSTRAINT fk_user_dept FOREIGN KEY (department_id) 
-        REFERENCES DEPARTMENT(id_department)
+        REFERENCES DEPARTMENT(department_id) -- Corrigé: id_department -> department_id
         ON DELETE SET NULL
 );
---TABLE INCIDENTS
+
+-- TABLE INCIDENTS
 CREATE TABLE INCIDENTS (
-    incidentid NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    incident_id NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     title VARCHAR2(200) NOT NULL,
     severity_level VARCHAR2(50) CHECK (severity_level IN ('CRITICAL', 'HIGH', 'MEDIUM', 'LOW')),
+    status VARCHAR2(20) DEFAULT 'OPEN' CHECK (status IN ('OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED')), -- Ajout suggéré
     date_reporting TIMESTAMP DEFAULT SYSDATE,
     resolved_at TIMESTAMP NULL,
     reported_by NUMBER,
     CONSTRAINT fk_incident_reporter FOREIGN KEY (reported_by) 
-        REFERENCES USERS(userid)
+        REFERENCES USERS(user_id)
         ON DELETE SET NULL
 );
--- TABLE EVIDENCE:
+
+-- TABLE EVIDENCE
 CREATE TABLE EVIDENCE (
     evidence_id NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     incident_id NUMBER NOT NULL,
@@ -48,13 +51,14 @@ CREATE TABLE EVIDENCE (
     collected_at TIMESTAMP DEFAULT SYSDATE,
     collected_by NUMBER,
     CONSTRAINT fk_evidence_incident FOREIGN KEY (incident_id) 
-        REFERENCES INCIDENTS(incidentid)
+        REFERENCES INCIDENTS(incident_id)
         ON DELETE CASCADE,
     CONSTRAINT fk_evidence_collector FOREIGN KEY (collected_by) 
-        REFERENCES USERS(userid)
+        REFERENCES USERS(user_id) -- Corrigé: userid -> user_id
         ON DELETE SET NULL
 );
---TABLE ACTION_LOG
+
+-- TABLE ACTION_LOG
 CREATE TABLE ACTION_LOG (
     log_id NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     incident_id NUMBER NOT NULL,
@@ -63,10 +67,10 @@ CREATE TABLE ACTION_LOG (
     action_description CLOB,
     action_date TIMESTAMP DEFAULT SYSDATE,
     CONSTRAINT fk_log_incident FOREIGN KEY (incident_id) 
-        REFERENCES INCIDENTS(incidentid)
+        REFERENCES INCIDENTS(incident_id) -- Corrigé: incidentid -> incident_id
         ON DELETE CASCADE,
     CONSTRAINT fk_log_user FOREIGN KEY (user_id) 
-        REFERENCES USERS(userid)
+        REFERENCES USERS(user_id) -- Corrigé: userid -> user_id
         ON DELETE SET NULL
 );
 -- =========================
@@ -90,7 +94,7 @@ CREATE INDEX idx_action_user ON ACTION_LOG(user_id);
 CREATE INDEX idx_action_date ON ACTION_LOG(action_date);
 
 -- =========================
---        DML (Data Manipulation Language)
+--        D M L (Data Manipulation Language)
 -- =========================
 
 -- INSERTION DES DÉPARTEMENTS
