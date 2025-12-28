@@ -80,9 +80,6 @@ CREATE TABLE ACTION_LOG (
         REFERENCES USERS(user_id) -- Corrigé: userid -> user_id
         ON DELETE SET NULL
 );
--- =========================
---        D D L
--- =========================
 
 
 -- =========================
@@ -223,7 +220,7 @@ BEGIN
     WHERE u.user_id = :NEW.collected_by
       AND d.name_department = 'Cybersecurity';
       
-    IF v_count = 0 THEN
+ IF v_count = 0 THEN
         RAISE_APPLICATION_ERROR(-20001, 
             'ERROR: Only Cybersecurity department users can collect evidence!');
     END IF;
@@ -248,7 +245,7 @@ END;
 CREATE OR REPLACE VIEW v_incidents_details AS
 SELECT i.incident_id, i.title, i.severity_level, i.status, 
        i.date_reporting, u.name AS reporter, d.name_department,
-       COUNT(e.evidence_id) AS evidence_count
+       COUNT(e.evidence_id) AS evidence_count,
        ROUND((SYSDATE - i.date_reporting) * 24, 2) AS hours_open
 FROM INCIDENTS i
 LEFT JOIN USERS u ON i.reported_by = u.user_id
@@ -424,7 +421,7 @@ EXCEPTION
 END;
 /
 
--- cursor: Statistiques par département
+-- cursor1: Statistiques par département
 DECLARE
     CURSOR c_stats IS
         SELECT d.name_department,
@@ -452,7 +449,7 @@ EXCEPTION
         DBMS_OUTPUT.PUT_LINE('Error displaying department statistics: ' || SQLERRM);
 END;
 /
------ Curseur: Parcourir les preuves d'un incident----
+----- Curseur2: Parcourir les preuves d'un incident----
 DECLARE
     CURSOR c_evidence (p_incident_id NUMBER) IS
         SELECT e.evidence_type, e.collected_at,
@@ -462,7 +459,6 @@ DECLARE
         JOIN DEPARTMENT d ON u.department_id = d.department_id
         WHERE e.incident_id = p_incident_id
         ORDER BY e.collected_at;
-    
     v_incident_title INCIDENTS.title%TYPE;
 BEGIN
     -- Obtenir le titre de l'incident
@@ -479,5 +475,36 @@ BEGIN
         DBMS_OUTPUT.PUT_LINE('Date: ' || TO_CHAR(rec.collected_at, 'DD-MON-YYYY HH24:MI'));
         DBMS_OUTPUT.PUT_LINE('----------------------------------------');
     END LOOP;
+END;
+/
+--- PROCÉDURE1: Ajouter une preuve (avec sécurité trigger)
+CREATE OR REPLACE PROCEDURE add_evidence (
+    p_incident_id   IN EVIDENCE.incident_id%TYPE,
+    p_type          IN EVIDENCE.evidence_type%TYPE,
+    p_collected_by  IN USERS.user_id%TYPE
+) IS
+BEGIN
+    INSERT INTO EVIDENCE (incident_id, evidence_type, collected_by)
+    VALUES (p_incident_id, p_type, p_collected_by);
+
+ COMMIT;
+EXCEPTION
+    WHEN OTHERS THEN
+        ROLLBACK;
+        DBMS_OUTPUT.PUT_LINE(SQLERRM);
+END;
+/
+---- FONCTION1: Nombre d’incidents critiques ouverts
+CREATE OR REPLACE FUNCTION count_critical_open
+RETURN NUMBER IS
+    v_count NUMBER;
+BEGIN
+    SELECT COUNT(*)
+    INTO v_count
+    FROM INCIDENTS
+    WHERE severity_level = 'CRITICAL'
+      AND status <> 'CLOSED';
+
+ RETURN v_count;
 END;
 /
