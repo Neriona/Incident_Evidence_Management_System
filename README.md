@@ -115,7 +115,7 @@ CREATE INDEX idx_action_user ON ACTION_LOG(user_id);
 CREATE INDEX idx_action_date ON ACTION_LOG(action_date);
 
 -- =========================
---        D M L (Data Manipulation Language)
+--        D M L-Iinitialisation 
 -- =========================
 
 -- INSERTION DES DÉPARTEMENTS
@@ -290,6 +290,10 @@ BEGIN
 END;
 /
 
+-- =========================
+--        D M L-Preuves & Actions 
+-- =========================
+
 -- INSERTION DES PREUVES (avec validation automatique par trigger)
 
 -- Evidence pour Incident 1 (SQL Injection)
@@ -447,7 +451,7 @@ EXCEPTION
 END;
 /
 
--- cursor1: Statistiques par département
+-- curseur1: Statistiques par département
 DECLARE
     CURSOR c_stats IS
         SELECT d.name_department,
