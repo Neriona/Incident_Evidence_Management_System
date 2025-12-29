@@ -242,24 +242,33 @@ END;
 -- =========================
 
 -- Vue: Détails complets des incidents
-CREATE OR REPLACE VIEW v_incidents_details AS
-SELECT i.incident_id, i.title, i.severity_level, i.status, 
-       i.date_reporting, u.name AS reporter, d.name_department,
-       COUNT(e.evidence_id) AS evidence_count,
-       ROUND((SYSDATE - i.date_reporting) * 24, 2) AS hours_open
-FROM INCIDENTS i
-LEFT JOIN USERS u ON i.reported_by = u.user_id
-LEFT JOIN DEPARTMENT d ON u.department_id = d.department_id
-LEFT JOIN EVIDENCE e ON i.incident_id = e.incident_id
-GROUP BY i.incident_id, i.title, i.severity_level, i.status, 
-         i.date_reporting, u.name, d.name_department;
+BEGIN
+    EXECUTE IMMEDIATE '
+        CREATE OR REPLACE VIEW v_incidents_details AS
+        SELECT i.incident_id, i.title, i.severity_level, i.status, 
+               i.date_reporting, u.name AS reporter, d.name_department,
+               COUNT(e.evidence_id) AS evidence_count,
+               ROUND((SYSDATE - CAST(i.date_reporting AS DATE)) * 24, 2) AS hours_open
+        FROM INCIDENTS i
+        LEFT JOIN USERS u ON i.reported_by = u.user_id
+        LEFT JOIN DEPARTMENT d ON u.department_id = d.department_id
+        LEFT JOIN EVIDENCE e ON i.incident_id = e.incident_id
+        GROUP BY i.incident_id, i.title, i.severity_level, i.status, 
+                 i.date_reporting, u.name, d.name_department
+    ';
+END;
+/
 
 -- Test de la vue
+SET SERVEROUTPUT ON;
+
 BEGIN
     DBMS_OUTPUT.PUT_LINE('=== VUE INCIDENTS ===');
     FOR rec IN (SELECT * FROM v_incidents_details WHERE ROWNUM <= 5) LOOP
-        DBMS_OUTPUT.PUT_LINE(rec.title || ' | ' || rec.severity_level || 
-                           ' | Evidence: ' || rec.evidence_count);
+        DBMS_OUTPUT.PUT_LINE(
+            rec.title || ' | ' || rec.severity_level ||
+            ' | Evidence: ' || rec.evidence_count
+        );
     END LOOP;
 END;
 /
